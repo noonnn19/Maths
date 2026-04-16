@@ -1,0 +1,672 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>If love had equations</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&family=JetBrains+Mono:wght@300;400&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg: #050507;
+    --text: #e8e6f0;
+    --muted: #555;
+    --faint: #2a2a35;
+    --accent: #c4b0f5;
+    --accent2: #f5b8c4;
+    --correct: #9ee4b4;
+    --wrong: #f0a0a8;
+    --grid: rgba(255,255,255,0.025);
+  }
+
+  html, body {
+    height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    overflow: hidden;
+    user-select: none;
+  }
+
+  /* graph paper bg */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(var(--grid) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: radial-gradient(ellipse at 50% 60%, rgba(180,150,255,0.07) 0%, transparent 65%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .screen {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 48px 32px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.9s ease;
+    z-index: 1;
+  }
+  .screen.active { opacity: 1; pointer-events: all; }
+
+  /* axis ornament on screens */
+  .axis-ornament {
+    position: absolute;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: #222;
+    letter-spacing: 0.5px;
+  }
+  .axis-x { bottom: 56px; right: 28px; }
+  .axis-y { top: 28px; left: 28px; writing-mode: vertical-rl; }
+
+  .label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    font-weight: 300;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: #333;
+    margin-bottom: 32px;
+    opacity: 0;
+    transform: translateY(6px);
+    transition: opacity 0.7s ease, transform 0.7s ease;
+  }
+  .label.show { opacity: 1; transform: translateY(0); }
+  .label span { color: var(--accent); opacity: 0.6; margin-right: 8px; }
+
+  .title {
+    font-family: 'DM Serif Display', Georgia, serif;
+    font-size: clamp(26px, 4.5vw, 44px);
+    font-weight: 400;
+    line-height: 1.3;
+    text-align: center;
+    color: var(--text);
+    opacity: 0;
+    transform: translateY(12px);
+    transition: opacity 0.9s ease 0.15s, transform 0.9s ease 0.15s;
+    max-width: 540px;
+  }
+  .title.show { opacity: 1; transform: translateY(0); }
+  .title em { font-style: italic; color: var(--accent); }
+
+  .subtitle {
+    font-size: 14px;
+    font-weight: 300;
+    color: #444;
+    text-align: center;
+    line-height: 1.9;
+    margin-top: 18px;
+    max-width: 380px;
+    opacity: 0;
+    transform: translateY(8px);
+    transition: opacity 0.9s ease 0.35s, transform 0.9s ease 0.35s;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.3px;
+  }
+  .subtitle.show { opacity: 1; transform: translateY(0); }
+
+  .btn {
+    margin-top: 38px;
+    padding: 10px 26px;
+    background: transparent;
+    border: 1px solid #252530;
+    border-radius: 2px;
+    color: #444;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    cursor: pointer;
+    opacity: 0;
+    transform: translateY(8px);
+    transition: opacity 0.9s ease 0.6s, transform 0.9s ease 0.6s, color 0.3s, border-color 0.3s;
+    position: relative;
+  }
+  .btn.show { opacity: 1; transform: translateY(0); }
+  .btn:hover { color: var(--accent); border-color: rgba(196,176,245,0.3); }
+  .btn::after {
+    content: '';
+    position: absolute;
+    bottom: -1px; left: 50%;
+    width: 0; height: 1px;
+    background: var(--accent);
+    transition: width 0.4s ease, left 0.4s ease;
+  }
+  .btn:hover::after { width: 100%; left: 0; }
+
+  /* EQUATION BOX */
+  .equation-wrap {
+    margin: 24px 0 18px;
+    opacity: 0;
+    transform: translateY(10px);
+    transition: opacity 1s ease 0.25s, transform 1s ease 0.25s;
+    position: relative;
+  }
+  .equation-wrap.show { opacity: 1; transform: translateY(0); }
+
+  .eq-box {
+    border: 1px solid #1a1a25;
+    border-radius: 2px;
+    padding: 14px 28px;
+    background: rgba(255,255,255,0.015);
+    backdrop-filter: blur(4px);
+    position: relative;
+  }
+  .eq-box::before {
+    content: attr(data-label);
+    position: absolute;
+    top: -9px; left: 12px;
+    background: var(--bg);
+    padding: 0 6px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    color: #2d2d3a;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+
+  .equation {
+    font-family: 'DM Serif Display', Georgia, serif;
+    font-size: clamp(18px, 3vw, 30px);
+    font-style: italic;
+    color: #d0c4f8;
+    text-align: center;
+    letter-spacing: 0.5px;
+    text-shadow: 0 0 24px rgba(200,184,240,0.25);
+  }
+
+  canvas {
+    display: block;
+    opacity: 0;
+    transform: translateY(6px);
+    transition: opacity 1.2s ease 0.3s, transform 1.2s ease 0.3s;
+  }
+  canvas.show { opacity: 1; transform: translateY(0); }
+
+  /* CHALLENGE */
+  .challenge {
+    opacity: 0;
+    transform: translateY(8px);
+    transition: opacity 0.8s ease 0.45s, transform 0.8s ease 0.45s;
+    width: 100%;
+    max-width: 340px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+  }
+  .challenge.show { opacity: 1; transform: translateY(0); }
+
+  .challenge-q {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    font-weight: 300;
+    color: #555;
+    text-align: center;
+    letter-spacing: 0.3px;
+    line-height: 1.8;
+  }
+
+  .options {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 7px;
+    width: 100%;
+  }
+
+  .opt {
+    padding: 9px 12px;
+    background: transparent;
+    border: 1px solid #1a1a25;
+    border-radius: 2px;
+    color: #3a3a4a;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    cursor: pointer;
+    transition: color 0.2s, border-color 0.2s, background 0.2s;
+    text-align: center;
+    letter-spacing: 0.3px;
+  }
+  .opt:hover { color: #aaa; border-color: #333; background: rgba(255,255,255,0.02); }
+  .opt.correct {
+    color: var(--correct);
+    border-color: rgba(158,228,180,0.3);
+    background: rgba(158,228,180,0.04);
+    pointer-events: none;
+  }
+  .opt.wrong {
+    color: var(--wrong);
+    border-color: rgba(240,160,168,0.25);
+    animation: shake 0.32s ease;
+  }
+  @keyframes shake {
+    0%,100% { transform: translateX(0); }
+    25% { transform: translateX(-4px); }
+    75% { transform: translateX(4px); }
+  }
+
+  .input-row {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+  }
+  .challenge-input {
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid #1e1e2a;
+    color: var(--text);
+    font-family: 'DM Serif Display', serif;
+    font-size: 22px;
+    font-style: italic;
+    width: 56px;
+    text-align: center;
+    outline: none;
+    padding: 4px 0;
+    transition: border-color 0.3s;
+    caret-color: var(--accent);
+    user-select: text;
+  }
+  .challenge-input:focus { border-color: #3a3a50; }
+  .challenge-input.correct { border-color: var(--correct); color: var(--correct); }
+  .challenge-input.wrong { border-color: var(--wrong); color: var(--wrong); animation: shake 0.32s ease; }
+
+  .submit-btn {
+    padding: 7px 14px;
+    background: transparent;
+    border: 1px solid #1a1a25;
+    border-radius: 2px;
+    color: #333;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: color 0.3s, border-color 0.3s;
+    user-select: none;
+  }
+  .submit-btn:hover { color: #888; border-color: #333; }
+
+  .hint {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: transparent;
+    text-align: center;
+    opacity: 0;
+    transition: opacity 0.5s ease;
+    min-height: 14px;
+    letter-spacing: 0.3px;
+  }
+  .hint.show { opacity: 1; color: #3a3a50; }
+
+  /* reveal lines */
+  .correct-reveal {
+    font-size: 13px;
+    font-weight: 300;
+    color: #3a3a4a;
+    text-align: center;
+    opacity: 0;
+    transform: translateY(6px);
+    transition: opacity 0.8s ease, transform 0.8s ease;
+    line-height: 1.8;
+    font-family: 'DM Sans', sans-serif;
+    font-style: italic;
+    letter-spacing: 0.2px;
+  }
+  .correct-reveal.show { opacity: 1; transform: translateY(0); }
+  .correct-reveal.accent { color: #7060a0; }
+  .reveal-b { transition-delay: 0.38s !important; }
+
+  /* connector thread */
+  .thread {
+    position: fixed;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 1px;
+    background: linear-gradient(to bottom, transparent, rgba(196,176,245,0.12), transparent);
+    z-index: 0;
+    pointer-events: none;
+    top: 0; bottom: 0;
+    opacity: 0.4;
+  }
+
+  /* PROGRESS */
+  .progress {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    z-index: 100;
+  }
+  .dot-wrap { display: flex; align-items: center; gap: 10px; }
+  .dot {
+    width: 3px; height: 3px;
+    border-radius: 50%;
+    background: #1e1e28;
+    transition: background 0.5s, transform 0.3s, width 0.4s;
+  }
+  .dot.active { background: var(--accent); transform: scale(1.4); }
+  .dot-line {
+    width: 16px; height: 1px;
+    background: #1a1a22;
+    transition: background 0.5s;
+  }
+  .dot-line.done { background: rgba(196,176,245,0.2); }
+
+  /* ── FINAL SCREEN ── */
+  #screen-final {
+    justify-content: flex-start;
+    padding-top: 0;
+    overflow: hidden;
+  }
+
+  .final-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    width: 100%;
+    max-width: 780px;
+    height: 100vh;
+    gap: 0;
+  }
+
+  /* LEFT: the graph */
+  .final-left {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-right: 1px solid #10101a;
+    padding: 40px 24px;
+    position: relative;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .final-left-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    color: #222;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    opacity: 0;
+    transition: opacity 0.8s ease 0.5s;
+  }
+  .final-left-label.show { opacity: 1; }
+
+  /* RIGHT: the confession */
+  .final-right {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 40px 36px 40px 40px;
+    gap: 0;
+  }
+
+  .final-lines { display:flex; flex-direction:column; gap:4px; margin-bottom:36px; }
+  .final-line {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    font-weight: 300;
+    color: #2a2a3a;
+    opacity: 0;
+    transform: translateX(10px);
+    transition: opacity 0.7s ease, transform 0.7s ease;
+    letter-spacing: 0.5px;
+    line-height: 2;
+  }
+  .final-line.show { opacity: 1; transform: translateX(0); }
+  .final-line.lit { color: #555; }
+  .final-pause { height: 20px; }
+
+  .final-separator {
+    width: 28px;
+    height: 1px;
+    background: #1e1e2a;
+    margin-bottom: 28px;
+    opacity: 0;
+    transition: opacity 0.6s ease;
+  }
+  .final-separator.show { opacity: 1; }
+
+  .final-big {
+    font-family: 'DM Serif Display', serif;
+    font-size: clamp(22px, 3vw, 34px);
+    color: var(--text);
+    line-height: 1.35;
+    opacity: 0;
+    transform: translateY(10px);
+    transition: opacity 1s ease, transform 1s ease;
+    margin-bottom: 20px;
+  }
+  .final-big.show { opacity:1; transform:translateY(0); }
+  .final-big em { color: var(--accent); font-style: italic; }
+
+  .final-note {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 12px;
+    font-weight: 300;
+    font-style: italic;
+    color: #2a2a3a;
+    line-height: 1.8;
+    opacity: 0;
+    transform: translateY(6px);
+    transition: opacity 0.8s ease, transform 0.8s ease;
+    max-width: 240px;
+  }
+  .final-note.show { opacity: 1; transform: translateY(0); }
+
+  /* graph container */
+  .graph-container {
+    position: relative;
+    opacity: 0;
+    transform: translateY(8px);
+    transition: opacity 1s ease, transform 1s ease;
+  }
+  .graph-container.show { opacity: 1; transform: translateY(0); }
+
+  .graph-annotation {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    color: #2a2a3a;
+    position: absolute;
+    pointer-events: none;
+    transition: color 1s ease;
+  }
+  .graph-annotation.lit { color: #555; }
+
+  @media (max-width: 600px) {
+    .final-grid {
+      grid-template-columns: 1fr;
+      grid-template-rows: 1fr 1fr;
+      height: 100vh;
+    }
+    .final-left { border-right: none; border-bottom: 1px solid #10101a; padding: 24px 16px; }
+    .final-right { padding: 28px 24px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="thread"></div>
+
+<div class="progress">
+  <div class="dot active" id="d0"></div>
+  <div class="dot-line" id="dl0"></div>
+  <div class="dot" id="d1"></div>
+  <div class="dot-line" id="dl1"></div>
+  <div class="dot" id="d2"></div>
+  <div class="dot-line" id="dl2"></div>
+  <div class="dot" id="d3"></div>
+  <div class="dot-line" id="dl3"></div>
+  <div class="dot" id="d4"></div>
+  <div class="dot-line" id="dl4"></div>
+  <div class="dot" id="d5"></div>
+</div>
+
+<!-- ── SCREEN 0: Intro ── -->
+<div class="screen active" id="screen-0">
+  <p class="label"><span>f(x) =</span> a small proof</p>
+  <h1 class="title">You like math.<br>So I tried to build<br>a case for <em>us</em>.</h1>
+  <p class="subtitle">// solve each one first.<br>// the answer matters.</p>
+  <button class="btn" onclick="nextScreen()">begin →</button>
+  <span class="axis-ornament axis-x">x →</span>
+  <span class="axis-ornament axis-y">↑ y</span>
+</div>
+
+<!-- ── SCREEN 1: Heart ── -->
+<div class="screen" id="screen-1">
+  <p class="label"><span>01</span> heart curve</p>
+  <div class="equation-wrap">
+    <div class="eq-box" data-label="implicit curve">
+      <div class="equation">(x² + y² − 1)³ = x²y³</div>
+    </div>
+  </div>
+  <div class="challenge" id="ch1">
+    <p class="challenge-q">// what shape does this implicit curve trace?</p>
+    <div class="options">
+      <button class="opt" onclick="checkOpt(this,'wrong',1)">∿ wave</button>
+      <button class="opt" onclick="checkOpt(this,'correct',1)">♡ heart</button>
+      <button class="opt" onclick="checkOpt(this,'wrong',1)">○ circle</button>
+      <button class="opt" onclick="checkOpt(this,'wrong',1)">∞ lemniscate</button>
+    </div>
+    <p class="hint" id="hint1">// hint: what would I graph just for you?</p>
+  </div>
+  <canvas id="heart-canvas" width="220" height="200" style="margin-top:12px;"></canvas>
+  <p class="correct-reveal" id="reveal1" style="margin-top:12px;">
+    Not a coincidence someone turned love into an equation.
+  </p>
+  <p class="correct-reveal reveal-b accent" id="reveal1b" style="margin-top:4px;">
+    Keep going.
+  </p>
+  <button class="btn" id="btn1" onclick="nextScreen()" style="margin-top:20px; opacity:0; pointer-events:none;">next →</button>
+  <span class="axis-ornament axis-x">x →</span>
+</div>
+
+<!-- ── SCREEN 2: Distance ── -->
+<div class="screen" id="screen-2">
+  <p class="label"><span>02</span> euclidean distance</p>
+  <div class="equation-wrap">
+    <div class="eq-box" data-label="distance formula">
+      <div class="equation">d = √( (x₂−x₁)² + (y₂−y₁)² )</div>
+    </div>
+  </div>
+  <div class="challenge" id="ch2">
+    <p class="challenge-q">// x₁=0, y₁=0, x₂=3, y₂=4 → d = ?</p>
+    <div class="input-row">
+      <input class="challenge-input" id="dist-input" type="text" maxlength="4"
+        placeholder="?" autocomplete="off"
+        onkeydown="if(event.key==='Enter')checkDist()">
+      <button class="submit-btn" onclick="checkDist()">check</button>
+    </div>
+    <p class="hint" id="hint2">// 3² + 4² = 9 + 16 = …</p>
+  </div>
+  <p class="correct-reveal" id="reveal2" style="margin-top:22px;">
+    Distance is just math. It has a formula.
+  </p>
+  <p class="correct-reveal reveal-b accent" id="reveal2b" style="margin-top:4px;">
+    That's what makes it feel so unfair.
+  </p>
+  <button class="btn" id="btn2" onclick="nextScreen()" style="margin-top:20px; opacity:0; pointer-events:none;">next →</button>
+  <span class="axis-ornament axis-x">x →</span>
+</div>
+
+<!-- ── SCREEN 3: Limits ── -->
+<div class="screen" id="screen-3">
+  <p class="label"><span>03</span> limit</p>
+  <div class="equation-wrap">
+    <div class="eq-box" data-label="limit definition">
+      <div class="equation">lim <sub style="font-size:0.5em;font-style:normal;">x → ∞</sub> &thinsp; <sup>1</sup>/<sub>x</sub> &thinsp;= ?</div>
+    </div>
+  </div>
+  <div class="challenge" id="ch3">
+    <p class="challenge-q">// as x grows without bound, where does 1/x converge?</p>
+    <div class="options">
+      <button class="opt" onclick="checkOpt(this,'wrong',3)">∞</button>
+      <button class="opt" onclick="checkOpt(this,'correct',3)">0</button>
+      <button class="opt" onclick="checkOpt(this,'wrong',3)">1</button>
+      <button class="opt" onclick="checkOpt(this,'wrong',3)">undefined</button>
+    </div>
+    <p class="hint" id="hint3">// larger denominator → smaller fraction…</p>
+  </div>
+  <p class="correct-reveal" id="reveal3" style="margin-top:22px;">
+    Some feelings fade like 1/x — approach zero, never reach it.
+  </p>
+  <p class="correct-reveal reveal-b accent" id="reveal3b" style="margin-top:4px;">
+    Mine keeps compounding instead.
+  </p>
+  <button class="btn" id="btn3" onclick="nextScreen()" style="margin-top:20px; opacity:0; pointer-events:none;">next →</button>
+  <span class="axis-ornament axis-x">x →</span>
+</div>
+
+<!-- ── SCREEN 4: Linear ── -->
+<div class="screen" id="screen-4">
+  <p class="label"><span>04</span> slope-intercept</p>
+  <div class="equation-wrap">
+    <div class="eq-box" data-label="linear equation">
+      <div class="equation">y = mx + <em style="color:var(--accent)">c</em></div>
+    </div>
+  </div>
+  <div class="challenge" id="ch4">
+    <p class="challenge-q">// in y = mx + c, what does <em style="color:var(--accent)">c</em> represent?</p>
+    <div class="options">
+      <button class="opt" onclick="checkOpt(this,'wrong',4)">slope</button>
+      <button class="opt" onclick="checkOpt(this,'correct',4)">constant</button>
+      <button class="opt" onclick="checkOpt(this,'wrong',4)">variable</button>
+      <button class="opt" onclick="checkOpt(this,'wrong',4)">coefficient</button>
+    </div>
+    <p class="hint" id="hint4">// the part x can never change</p>
+  </div>
+  <canvas id="line-canvas" width="230" height="130" style="margin-top:12px;"></canvas>
+  <p class="correct-reveal" id="reveal4" style="margin-top:14px;">
+    Everything in this function shifts with x.
+  </p>
+  <p class="correct-reveal reveal-b accent" id="reveal4b" style="margin-top:4px;">
+    Except <em>c</em>. Some things just stay.
+  </p>
+  <button class="btn" id="btn4" onclick="nextScreen()" style="margin-top:20px; opacity:0; pointer-events:none;">see the proof →</button>
+  <span class="axis-ornament axis-x">x →</span>
+</div>
+
+<!-- ── SCREEN 5: Final ── -->
+<div class="screen" id="screen-final">
+  <div class="final-grid">
+
+    <!-- LEFT: graph panel -->
+    <div class="final-left">
+      <p class="final-left-label" id="flabel">f(x) = love</p>
+      <div class="graph-container" id="graphContainer">
+        <canvas id="final-graph" width="280" height="280"></canvas>
+        <!-- annotations placed by JS -->
+      </div>
+      <p class="final-left-label" id="flabel2" style="transition-delay:3.5s">plotted for you</p>
+    </div>
+
+    <!-- RIGHT: confession -->
+    <div class="final-right">
+      <div class="final-lines">
+        <p class="final-line" id="fl1">// I tried graphs.</p>
+        <p class="final-line" id="fl2">// I tried limits.</p>
+        <p class="final-line" id="fl3">// I tried formulas.</p>
+        <p class="fin
